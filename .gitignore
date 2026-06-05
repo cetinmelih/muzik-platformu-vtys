@@ -1,0 +1,14 @@
+.dotnet_home/
+.vs/
+
+**/bin/
+**/obj/
+
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+*.log
+*.tmp
+*.bak

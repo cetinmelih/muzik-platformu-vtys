@@ -178,6 +178,24 @@ Windows Forms arayuzunde bulunan temel ozellikler:
 
 Arayuzdeki butonlarin bir kismi stored procedureleri cagirir. Listeleme ve gosterme islemlerinde viewler ve SELECT sorgulari kullanilmistir.
 
+## Ekran Goruntuleri
+
+Giris ekrani:
+
+![Giris ekrani](screenshots/giris-ekrani.png)
+
+Ana ekran ve log gorunumu:
+
+![Ana ekran ve loglar](screenshots/ana-ekran-loglar.png)
+
+Playlist icerigi gorunumu:
+
+![Playlist icerigi](screenshots/playlist-icerigi.png)
+
+Veritabani ER diyagrami:
+
+![ER diyagram](screenshots/er-diyagram.png)
+
 ## Test Verileri
 
 Veritabani tablolarina gercege yakin dummy data eklenmistir. Cinsiyetler tablosu sabit referans tablo olarak dusunuldugu icin yapay olarak 10 degere tamamlanmamistir. Diger ana tablolar ve iliski tablolarinda test sorgulari, viewler, triggerlar ve procedureler calisacak sekilde veri bulunmaktadir.
@@ -248,4 +266,3 @@ Uygulama basit katmanli bir yapiya sahiptir:
 - Microsoft SQL Server Management Studio Documentation
 - Microsoft .NET Windows Forms Documentation
 - Microsoft.Data.SqlClient Documentation
-

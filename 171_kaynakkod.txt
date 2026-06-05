@@ -1,0 +1,744 @@
+﻿MUZIK PLATFORMU PROJESI - KAYNAK KODLAR
+Grup No: 171
+
+============================================================
+DOSYA: MuzikPlatformuApp\MuzikPlatformuApp.csproj
+============================================================
+
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
+  </ItemGroup>
+
+</Project>
+
+
+============================================================
+DOSYA: MuzikPlatformuApp\Program.cs
+============================================================
+
+namespace MuzikPlatformuApp;
+
+static class Program
+{
+    /// <summary>
+    ///  The main entry point for the application.
+    /// </summary>
+    [STAThread]
+    static void Main()
+    {
+        // To customize application configuration such as set high DPI settings or default font,
+        // see https://aka.ms/applicationconfiguration.
+        ApplicationConfiguration.Initialize();
+        Application.Run(new LoginForm());
+    }    
+}
+
+
+============================================================
+DOSYA: MuzikPlatformuApp\Db.cs
+============================================================
+
+using System.Data;
+using Microsoft.Data.SqlClient;
+
+namespace MuzikPlatformuApp;
+
+internal static class Db
+{
+    public const string ConnectionString =
+        @"Server=PC-A4H34625\SQLEXPRESS;Database=MuzikPlatformuDB;Trusted_Connection=True;Encrypt=False;TrustServerCertificate=True;";
+
+    public static DataTable Query(string sql, params SqlParameter[] parameters)
+    {
+        using var connection = new SqlConnection(ConnectionString);
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddRange(parameters);
+
+        using var adapter = new SqlDataAdapter(command);
+        var table = new DataTable();
+        adapter.Fill(table);
+        return table;
+    }
+
+    public static DataTable StoredProcedure(string procedureName, params SqlParameter[] parameters)
+    {
+        using var connection = new SqlConnection(ConnectionString);
+        using var command = new SqlCommand(procedureName, connection)
+        {
+            CommandType = CommandType.StoredProcedure
+        };
+        command.Parameters.AddRange(parameters);
+
+        using var adapter = new SqlDataAdapter(command);
+        var table = new DataTable();
+        adapter.Fill(table);
+        return table;
+    }
+
+    public static void ExecuteStoredProcedure(string procedureName, params SqlParameter[] parameters)
+    {
+        using var connection = new SqlConnection(ConnectionString);
+        using var command = new SqlCommand(procedureName, connection)
+        {
+            CommandType = CommandType.StoredProcedure
+        };
+        command.Parameters.AddRange(parameters);
+
+        connection.Open();
+        command.ExecuteNonQuery();
+    }
+}
+
+
+============================================================
+DOSYA: MuzikPlatformuApp\LoginForm.cs
+============================================================
+
+using Microsoft.Data.SqlClient;
+
+namespace MuzikPlatformuApp;
+
+public sealed class LoginForm : Form
+{
+    private readonly TextBox emailTextBox = new();
+    private readonly TextBox passwordTextBox = new();
+    private readonly Button loginButton = new();
+    private readonly Button registerButton = new();
+
+    public LoginForm()
+    {
+        Text = "Muzik Platformu - Giris";
+        StartPosition = FormStartPosition.CenterScreen;
+        FormBorderStyle = FormBorderStyle.FixedSingle;
+        MaximizeBox = false;
+        ClientSize = new Size(360, 250);
+
+        var titleLabel = new Label
+        {
+            Text = "Muzik Platformu",
+            Font = new Font(FontFamily.GenericSansSerif, 16, FontStyle.Bold),
+            AutoSize = true,
+            Location = new Point(95, 20)
+        };
+
+        var emailLabel = new Label { Text = "Email", AutoSize = true, Location = new Point(35, 72) };
+        emailTextBox.Location = new Point(120, 68);
+        emailTextBox.Width = 210;
+
+        var passwordLabel = new Label { Text = "Sifre", AutoSize = true, Location = new Point(35, 112) };
+        passwordTextBox.Location = new Point(120, 108);
+        passwordTextBox.Width = 210;
+        passwordTextBox.UseSystemPasswordChar = true;
+
+        loginButton.Text = "Giris Yap";
+        loginButton.Location = new Point(120, 150);
+        loginButton.Width = 210;
+        loginButton.Click += LoginButton_Click;
+
+        registerButton.Text = "Kayit Ol";
+        registerButton.Location = new Point(120, 190);
+        registerButton.Width = 210;
+        registerButton.Click += RegisterButton_Click;
+
+        Controls.AddRange([titleLabel, emailLabel, emailTextBox, passwordLabel, passwordTextBox, loginButton, registerButton]);
+    }
+
+    private void LoginButton_Click(object? sender, EventArgs e)
+    {
+        try
+        {
+            var result = Db.StoredProcedure(
+                "sp_KullaniciGiris",
+                new SqlParameter("@kullaniciEmail", emailTextBox.Text.Trim()),
+                new SqlParameter("@kullaniciSifreHash", passwordTextBox.Text.Trim()));
+
+            if (result.Rows.Count == 0)
+            {
+                MessageBox.Show("Email veya sifre hatali.", "Giris Basarisiz", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var userId = Convert.ToInt32(result.Rows[0]["kullaniciID"]);
+            var username = Convert.ToString(result.Rows[0]["kullaniciAdi"]) ?? "";
+
+            Hide();
+            using (var mainForm = new MainForm(userId, username))
+            {
+                mainForm.ShowDialog();
+            }
+
+            passwordTextBox.Clear();
+            Show();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Baglanti/SQL Hatasi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void RegisterButton_Click(object? sender, EventArgs e)
+    {
+        using var form = new RegisterForm();
+        form.ShowDialog(this);
+    }
+}
+
+
+============================================================
+DOSYA: MuzikPlatformuApp\RegisterForm.cs
+============================================================
+
+using Microsoft.Data.SqlClient;
+
+namespace MuzikPlatformuApp;
+
+public sealed class RegisterForm : Form
+{
+    private readonly TextBox usernameTextBox = new();
+    private readonly TextBox emailTextBox = new();
+    private readonly TextBox passwordTextBox = new();
+
+    public RegisterForm()
+    {
+        Text = "Kayit Ol";
+        StartPosition = FormStartPosition.CenterParent;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        ClientSize = new Size(380, 240);
+        MaximizeBox = false;
+        MinimizeBox = false;
+
+        var usernameLabel = new Label { Text = "Kullanici adi", AutoSize = true, Location = new Point(25, 35) };
+        usernameTextBox.Location = new Point(140, 31);
+        usernameTextBox.Width = 220;
+
+        var emailLabel = new Label { Text = "Email", AutoSize = true, Location = new Point(25, 75) };
+        emailTextBox.Location = new Point(140, 71);
+        emailTextBox.Width = 220;
+
+        var passwordLabel = new Label { Text = "Sifre", AutoSize = true, Location = new Point(25, 115) };
+        passwordTextBox.Location = new Point(140, 111);
+        passwordTextBox.Width = 220;
+        passwordTextBox.UseSystemPasswordChar = true;
+
+        var saveButton = new Button
+        {
+            Text = "Kaydet",
+            Location = new Point(140, 160),
+            Width = 100
+        };
+        saveButton.Click += SaveButton_Click;
+
+        var cancelButton = new Button
+        {
+            Text = "Iptal",
+            Location = new Point(260, 160),
+            Width = 100
+        };
+        cancelButton.Click += (_, _) => Close();
+
+        Controls.AddRange([usernameLabel, usernameTextBox, emailLabel, emailTextBox, passwordLabel, passwordTextBox, saveButton, cancelButton]);
+    }
+
+    private void SaveButton_Click(object? sender, EventArgs e)
+    {
+        var username = usernameTextBox.Text.Trim();
+        var email = emailTextBox.Text.Trim();
+        var password = passwordTextBox.Text.Trim();
+
+        if (username.Length == 0 || email.Length == 0 || password.Length == 0)
+        {
+            MessageBox.Show("Kullanici adi, email ve sifre bos olamaz.");
+            return;
+        }
+
+        try
+        {
+            Db.Query(
+                """
+                INSERT INTO Kullanicilar
+                    (kullaniciAdi, kullaniciEmail, kullaniciSifreHash)
+                VALUES
+                    (@kullaniciAdi, @kullaniciEmail, @kullaniciSifreHash);
+                """,
+                new SqlParameter("@kullaniciAdi", username),
+                new SqlParameter("@kullaniciEmail", email),
+                new SqlParameter("@kullaniciSifreHash", password));
+
+            MessageBox.Show("Kayit olusturuldu. Giris yapabilirsin.");
+            Close();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Kayit Hatasi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+}
+
+
+============================================================
+DOSYA: MuzikPlatformuApp\MainForm.cs
+============================================================
+
+using System.Data;
+using Microsoft.Data.SqlClient;
+
+namespace MuzikPlatformuApp;
+
+public sealed class MainForm : Form
+{
+    private readonly int userId;
+    private readonly string username;
+
+    private readonly DataGridView songsGrid = new();
+    private readonly DataGridView playlistsGrid = new();
+    private readonly DataGridView logsGrid = new();
+
+    public MainForm(int userId, string username)
+    {
+        this.userId = userId;
+        this.username = username;
+
+        Text = $"Muzik Platformu - {username}";
+        StartPosition = FormStartPosition.CenterScreen;
+        ClientSize = new Size(1100, 680);
+
+        BuildLayout();
+        LoadData();
+    }
+
+    private void BuildLayout()
+    {
+        var header = new Label
+        {
+            Text = $"Hos geldin, {username}",
+            Font = new Font(FontFamily.GenericSansSerif, 13, FontStyle.Bold),
+            AutoSize = true,
+            Location = new Point(15, 15)
+        };
+
+        songsGrid.Location = new Point(15, 55);
+        songsGrid.Size = new Size(690, 300);
+        songsGrid.ReadOnly = true;
+        songsGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        songsGrid.MultiSelect = false;
+        songsGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+
+        playlistsGrid.Location = new Point(725, 55);
+        playlistsGrid.Size = new Size(350, 300);
+        playlistsGrid.ReadOnly = true;
+        playlistsGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        playlistsGrid.MultiSelect = false;
+        playlistsGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+
+        logsGrid.Location = new Point(15, 420);
+        logsGrid.Size = new Size(1060, 230);
+        logsGrid.ReadOnly = true;
+        logsGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+
+        var refreshButton = CreateButton("Yenile", 15, 365, RefreshButton_Click);
+        var listenButton = CreateButton("35sn Dinle", 125, 365, ListenButton_Click);
+        var likeButton = CreateButton("Sarkiyi Begen", 235, 365, LikeButton_Click);
+        var createPlaylistButton = CreateButton("Playlist Olustur", 385, 365, CreatePlaylistButton_Click);
+        var addSongButton = CreateButton("Playlist'e Ekle", 545, 365, AddSongButton_Click);
+        var removeSongButton = CreateButton("Playlist'ten Cikar", 705, 365, RemoveSongButton_Click);
+        var playlistSongsButton = CreateButton("Playlist Icerigi", 865, 365, PlaylistSongsButton_Click);
+        var logsButton = CreateButton("Loglari Goster", 15, 390, LogsButton_Click);
+        var renamePlaylistButton = CreateButton("Playlist Adi Degistir", 155, 390, RenamePlaylistButton_Click);
+        var logoutButton = CreateButton("Cikis Yap", 315, 390, LogoutButton_Click);
+
+        Controls.AddRange([
+            header,
+            songsGrid,
+            playlistsGrid,
+            logsGrid,
+            refreshButton,
+            listenButton,
+            likeButton,
+            createPlaylistButton,
+            addSongButton,
+            removeSongButton,
+            logsButton,
+            playlistSongsButton,
+            renamePlaylistButton,
+            logoutButton
+        ]);
+    }
+
+    private static Button CreateButton(string text, int x, int y, EventHandler clickHandler)
+    {
+        var button = new Button
+        {
+            Text = text,
+            Location = new Point(x, y),
+            Size = new Size(135, 28)
+        };
+        button.Click += clickHandler;
+        return button;
+    }
+
+    private void LoadData()
+    {
+        songsGrid.DataSource = Db.Query("""
+            SELECT
+                g.sarkiID,
+                g.sarkiAdi,
+                d.yayinAdi,
+                d.yayinTuru,
+                g.gecerliDinlenmeSayisi
+            FROM vw_GecerliDinlenmeSayilari g
+            LEFT JOIN vw_SarkiDetaylari d ON g.sarkiID = d.sarkiID
+            GROUP BY
+                g.sarkiID,
+                g.sarkiAdi,
+                d.yayinAdi,
+                d.yayinTuru,
+                g.gecerliDinlenmeSayisi
+            ORDER BY gecerliDinlenmeSayisi DESC, g.sarkiAdi;
+            """);
+
+        playlistsGrid.DataSource = Db.Query(
+            """
+            SELECT playlistID, playlistAdi, herkeseAcikMi, olusturulmaTarihi
+            FROM Playlistler
+            WHERE kullaniciID = @kullaniciID
+            ORDER BY olusturulmaTarihi DESC;
+            """,
+            new SqlParameter("@kullaniciID", userId));
+    }
+
+    private int? SelectedSongId()
+    {
+        return SelectedInt(songsGrid, "sarkiID");
+    }
+
+    private int? SelectedPlaylistId()
+    {
+        return SelectedInt(playlistsGrid, "playlistID");
+    }
+
+    private int? SelectedLogSongId()
+    {
+        return SelectedInt(logsGrid, "sarkiID");
+    }
+
+    private static int? SelectedInt(DataGridView grid, string columnName)
+    {
+        if (grid.CurrentRow == null)
+        {
+            return null;
+        }
+
+        var value = grid.CurrentRow.Cells[columnName].Value;
+        return value == DBNull.Value ? null : Convert.ToInt32(value);
+    }
+
+    private void RefreshButton_Click(object? sender, EventArgs e)
+    {
+        LoadData();
+    }
+
+    private void LikeButton_Click(object? sender, EventArgs e)
+    {
+        var songId = SelectedSongId();
+        if (songId == null)
+        {
+            MessageBox.Show("Once bir sarki sec.");
+            return;
+        }
+
+        try
+        {
+            Db.ExecuteStoredProcedure(
+                "sp_SarkiBegen",
+                new SqlParameter("@kullaniciID", userId),
+                new SqlParameter("@sarkiID", songId.Value));
+
+            MessageBox.Show("Sarki begenildi.");
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Islem Hatasi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void ListenButton_Click(object? sender, EventArgs e)
+    {
+        var songId = SelectedSongId();
+        if (songId == null)
+        {
+            MessageBox.Show("Once bir sarki sec.");
+            return;
+        }
+
+        try
+        {
+            var endTime = DateTime.Now;
+            var startTime = endTime.AddMilliseconds(-35000);
+
+            Db.Query(
+                """
+                INSERT INTO DinlemeGecmisi
+                    (kullaniciID, sarkiID, dinlemeBaslangicZamani, dinlemeBitisZamani, dinlenenMilisaniye)
+                VALUES
+                    (@kullaniciID, @sarkiID, @baslangic, @bitis, 35000);
+                """,
+                new SqlParameter("@kullaniciID", userId),
+                new SqlParameter("@sarkiID", songId.Value),
+                new SqlParameter("@baslangic", startTime),
+                new SqlParameter("@bitis", endTime));
+
+            MessageBox.Show("35 saniyelik dinleme kaydi eklendi. Gecerli dinlenme sayisi artmali.");
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Dinleme Hatasi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void CreatePlaylistButton_Click(object? sender, EventArgs e)
+    {
+        var playlistName = Prompt.Show("Playlist adi", "Yeni Playlist");
+        if (string.IsNullOrWhiteSpace(playlistName))
+        {
+            return;
+        }
+
+        try
+        {
+            Db.StoredProcedure(
+                "sp_PlaylistOlustur",
+                new SqlParameter("@kullaniciID", userId),
+                new SqlParameter("@playlistAdi", playlistName.Trim()),
+                new SqlParameter("@aciklama", DBNull.Value),
+                new SqlParameter("@herkeseAcikMi", true));
+
+            MessageBox.Show("Playlist olusturuldu.");
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Islem Hatasi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void RenamePlaylistButton_Click(object? sender, EventArgs e)
+    {
+        var playlistId = SelectedPlaylistId();
+        if (playlistId == null)
+        {
+            MessageBox.Show("Once bir playlist sec.");
+            return;
+        }
+
+        var newName = Prompt.Show("Yeni playlist adi", "Playlist Adi Degistir");
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            return;
+        }
+
+        try
+        {
+            Db.Query(
+                """
+                UPDATE Playlistler
+                SET playlistAdi = @playlistAdi
+                WHERE playlistID = @playlistID
+                  AND kullaniciID = @kullaniciID;
+                """,
+                new SqlParameter("@playlistAdi", newName.Trim()),
+                new SqlParameter("@playlistID", playlistId.Value),
+                new SqlParameter("@kullaniciID", userId));
+
+            MessageBox.Show("Playlist adi degistirildi.");
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Islem Hatasi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void AddSongButton_Click(object? sender, EventArgs e)
+    {
+        var songId = SelectedSongId();
+        var playlistId = SelectedPlaylistId();
+
+        if (songId == null || playlistId == null)
+        {
+            MessageBox.Show("Bir sarki ve bir playlist sec.");
+            return;
+        }
+
+        try
+        {
+            Db.ExecuteStoredProcedure(
+                "sp_PlaylisteSarkiEkle",
+                new SqlParameter("@playlistID", playlistId.Value),
+                new SqlParameter("@sarkiID", songId.Value),
+                new SqlParameter("@siraNo", DBNull.Value));
+
+            MessageBox.Show("Sarki playliste eklendi.");
+            LoadData();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Islem Hatasi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void LogsButton_Click(object? sender, EventArgs e)
+    {
+        logsGrid.DataSource = Db.Query("""
+            SELECT TOP 50
+                playlistSarkiLogID AS logID,
+                playlistAdi,
+                sarkiAdi,
+                islemTuru,
+                islemTarihi
+            FROM PlaylistSarkiLoglari
+            ORDER BY islemTarihi DESC;
+            """);
+    }
+
+    private void RemoveSongButton_Click(object? sender, EventArgs e)
+    {
+        var playlistId = SelectedPlaylistId();
+        var songId = SelectedLogSongId() ?? SelectedSongId();
+
+        if (playlistId == null || songId == null)
+        {
+            MessageBox.Show("Bir playlist ve cikarilacak sarkiyi sec. Playlist iceriginden sarki secersen daha net olur.");
+            return;
+        }
+
+        try
+        {
+            Db.Query(
+                """
+                DELETE FROM PlaylistSarkilari
+                WHERE playlistID = @playlistID
+                  AND sarkiID = @sarkiID;
+                """,
+                new SqlParameter("@playlistID", playlistId.Value),
+                new SqlParameter("@sarkiID", songId.Value));
+
+            MessageBox.Show("Sarki playlistten cikarildi.");
+            LoadData();
+            ShowPlaylistSongs(playlistId.Value);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Islem Hatasi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void PlaylistSongsButton_Click(object? sender, EventArgs e)
+    {
+        var playlistId = SelectedPlaylistId();
+        if (playlistId == null)
+        {
+            MessageBox.Show("Once bir playlist sec.");
+            return;
+        }
+
+        ShowPlaylistSongs(playlistId.Value);
+    }
+
+    private void LogoutButton_Click(object? sender, EventArgs e)
+    {
+        Close();
+    }
+
+    private void ShowPlaylistSongs(int playlistId)
+    {
+        logsGrid.DataSource = Db.Query(
+            """
+            SELECT
+                playlistID,
+                playlistAdi,
+                sarkiID,
+                sarkiAdi,
+                siraNo,
+                eklenmeTarihi
+            FROM vw_PlaylistDetaylari
+            WHERE playlistID = @playlistID
+            ORDER BY
+                CASE WHEN siraNo IS NULL THEN 1 ELSE 0 END,
+                siraNo,
+                eklenmeTarihi;
+            """,
+            new SqlParameter("@playlistID", playlistId));
+    }
+}
+
+
+============================================================
+DOSYA: MuzikPlatformuApp\Prompt.cs
+============================================================
+
+namespace MuzikPlatformuApp;
+
+internal static class Prompt
+{
+    public static string? Show(string labelText, string title)
+    {
+        using var form = new Form
+        {
+            Text = title,
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            ClientSize = new Size(360, 140),
+            MinimizeBox = false,
+            MaximizeBox = false
+        };
+
+        var label = new Label
+        {
+            Text = labelText,
+            Location = new Point(20, 20),
+            AutoSize = true
+        };
+
+        var textBox = new TextBox
+        {
+            Location = new Point(20, 50),
+            Width = 320
+        };
+
+        var okButton = new Button
+        {
+            Text = "Tamam",
+            DialogResult = DialogResult.OK,
+            Location = new Point(180, 90),
+            Width = 75
+        };
+
+        var cancelButton = new Button
+        {
+            Text = "Iptal",
+            DialogResult = DialogResult.Cancel,
+            Location = new Point(265, 90),
+            Width = 75
+        };
+
+        form.Controls.AddRange([label, textBox, okButton, cancelButton]);
+        form.AcceptButton = okButton;
+        form.CancelButton = cancelButton;
+
+        return form.ShowDialog() == DialogResult.OK ? textBox.Text : null;
+    }
+}
+
+
